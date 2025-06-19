@@ -39,7 +39,8 @@
 </div>
 
 ## 🎉 News
-- [X] [2025.06.05]🎯📢LightRAG now supports multimodal document parsing and RAG with MinerU integration (PDF, images, Office, tables, formulas, etc.). See the new [multimodal section](https://github.com/HKUDS/LightRAG/?tab=readme-ov-file#multimodal-document-processing-mineru-integration) below.
+- [X] [2025.06.16]🎯📢Our team has released [RAG-Anything](https://github.com/HKUDS/RAG-Anything) an All-in-One Multimodal RAG System for seamless text, image, table, and equation processing.
+- [X] [2025.06.05]🎯📢LightRAG now supports comprehensive multimodal data handling through [RAG-Anything](https://github.com/HKUDS/RAG-Anything) integration, enabling seamless document parsing and RAG capabilities across diverse formats including PDFs, images, Office documents, tables, and formulas. Please refer to the new [multimodal section](https://github.com/HKUDS/LightRAG/?tab=readme-ov-file#multimodal-document-processing-rag-anything-integration) for details.
 - [X] [2025.03.18]🎯📢LightRAG now supports citation functionality, enabling proper source attribution.
 - [X] [2025.02.05]🎯📢Our team has released [VideoRAG](https://github.com/HKUDS/VideoRAG) understanding extremely long-context videos.
 - [X] [2025.01.13]🎯📢Our team has released [MiniRAG](https://github.com/HKUDS/MiniRAG) making RAG simpler with small models.
@@ -149,6 +150,12 @@ For a streaming response implementation example, please see `examples/lightrag_o
 
 > If you would like to integrate LightRAG into your project, we recommend utilizing the REST API provided by the LightRAG Server. LightRAG Core is typically intended for embedded applications or for researchers who wish to conduct studies and evaluations.
 
+### ⚠️ Important: Initialization Requirements
+
+**LightRAG requires explicit initialization before use.** You must call both `await rag.initialize_storages()` and `await initialize_pipeline_status()` after creating a LightRAG instance, otherwise you will encounter errors like:
+- `AttributeError: __aenter__` - if storages are not initialized
+- `KeyError: 'history_messages'` - if pipeline status is not initialized
+
 ### A Simple Program
 
 Use the below Python snippet to initialize LightRAG, insert text to it, and perform queries:
@@ -173,8 +180,9 @@ async def initialize_rag():
         embedding_func=openai_embed,
         llm_model_func=gpt_4o_mini_complete,
     )
-    await rag.initialize_storages()
-    await initialize_pipeline_status()
+    # IMPORTANT: Both initialization calls are required!
+    await rag.initialize_storages()  # Initialize storage backends
+    await initialize_pipeline_status()  # Initialize processing pipeline
     return rag
 
 async def main():
@@ -184,7 +192,7 @@ async def main():
         rag.insert("Your text")
 
         # Perform hybrid search
-        mode="hybrid"
+        mode = "hybrid"
         print(
           await rag.query(
               "What are the top themes in this story?",
@@ -1051,30 +1059,59 @@ When merging entities:
 
 </details>
 
-## Multimodal Document Processing (MinerU Integration)
+## Multimodal Document Processing (RAG-Anything Integration)
 
-LightRAG now supports multimodal document parsing and retrieval-augmented generation (RAG) via [MinerU](https://github.com/opendatalab/MinerU). You can extract structured content (text, images, tables, formulas, etc.) from PDF, images, and Office documents, and use them in your RAG pipeline.
+LightRAG now seamlessly integrates with [RAG-Anything](https://github.com/HKUDS/RAG-Anything), a comprehensive **All-in-One Multimodal Document Processing RAG system** built specifically for LightRAG. RAG-Anything enables advanced parsing and retrieval-augmented generation (RAG) capabilities, allowing you to handle multimodal documents seamlessly and extract structured content—including text, images, tables, and formulas—from various document formats for integration into your RAG pipeline.
 
 **Key Features:**
-- Parse PDFs, images, DOC/DOCX/PPT/PPTX, and more
-- Extract and index text, images, tables, formulas, and document structure
-- Query and retrieve multimodal content (text, image, table, formula) in RAG
-- Seamless integration with LightRAG core and RAGAnything
+- **End-to-End Multimodal Pipeline**: Complete workflow from document ingestion and parsing to intelligent multimodal query answering
+- **Universal Document Support**: Seamless processing of PDFs, Office documents (DOC/DOCX/PPT/PPTX/XLS/XLSX), images, and diverse file formats
+- **Specialized Content Analysis**: Dedicated processors for images, tables, mathematical equations, and heterogeneous content types
+- **Multimodal Knowledge Graph**: Automatic entity extraction and cross-modal relationship discovery for enhanced understanding
+- **Hybrid Intelligent Retrieval**: Advanced search capabilities spanning textual and multimodal content with contextual understanding
 
 **Quick Start:**
-1. Install dependencies:
+1. Install RAG-Anything:
    ```bash
-   pip install "magic-pdf[full]>=1.2.2" huggingface_hub
+   pip install raganything
    ```
-2. Download MinerU model weights (see [MinerU Integration Guide](docs/mineru_integration_en.md))
-3. Use the new `MineruParser` or RAGAnything's `process_document_complete` to process files:
+2. Process multimodal documents:
    ```python
-   from lightrag.mineru_parser import MineruParser
-   content_list, md_content = MineruParser.parse_pdf('path/to/document.pdf', 'output_dir')
-   # or for any file type:
-   content_list, md_content = MineruParser.parse_document('path/to/file', 'auto', 'output_dir')
+   import asyncio
+   from raganything import RAGAnything
+   from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+
+   async def main():
+       # Initialize RAGAnything with LightRAG integration
+       rag = RAGAnything(
+           working_dir="./rag_storage",
+           llm_model_func=lambda prompt, **kwargs: openai_complete_if_cache(
+               "gpt-4o-mini", prompt, api_key="your-api-key", **kwargs
+           ),
+           embedding_func=lambda texts: openai_embed(
+               texts, model="text-embedding-3-large", api_key="your-api-key"
+           ),
+           embedding_dim=3072,
+       )
+
+       # Process multimodal documents
+       await rag.process_document_complete(
+           file_path="path/to/your/document.pdf",
+           output_dir="./output"
+       )
+
+       # Query multimodal content
+       result = await rag.query_with_multimodal(
+           "What are the main findings shown in the figures and tables?",
+           mode="hybrid"
+       )
+       print(result)
+
+   if __name__ == "__main__":
+       asyncio.run(main())
    ```
-4. Query multimodal content with LightRAG see [docs/mineru_integration_en.md](docs/mineru_integration_en.md).
+
+For detailed documentation and advanced usage, please refer to the [RAG-Anything repository](https://github.com/HKUDS/RAG-Anything).
 
 ## Token Usage Tracking
 
@@ -1216,6 +1253,33 @@ Valid modes are:
 - `"mix"`: Mix search cache
 
 </details>
+
+## Troubleshooting
+
+### Common Initialization Errors
+
+If you encounter these errors when using LightRAG:
+
+1. **`AttributeError: __aenter__`**
+   - **Cause**: Storage backends not initialized
+   - **Solution**: Call `await rag.initialize_storages()` after creating the LightRAG instance
+
+2. **`KeyError: 'history_messages'`**
+   - **Cause**: Pipeline status not initialized
+   - **Solution**: Call `await initialize_pipeline_status()` after initializing storages
+
+3. **Both errors in sequence**
+   - **Cause**: Neither initialization method was called
+   - **Solution**: Always follow this pattern:
+   ```python
+   rag = LightRAG(...)
+   await rag.initialize_storages()
+   await initialize_pipeline_status()
+   ```
+
+### Model Switching Issues
+
+When switching between different embedding models, you must clear the data directory to avoid errors. The only file you may want to preserve is `kv_store_llm_response_cache.json` if you wish to retain the LLM cache.
 
 ## LightRAG API
 
@@ -1482,7 +1546,47 @@ def extract_queries(file_path):
 
 </details>
 
-## Star History
+## 🔗 Related Projects
+
+*Ecosystem & Extensions*
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/HKUDS/RAG-Anything">
+          <div style="width: 100px; height: 100px; background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(0, 217, 255, 0.05) 100%); border-radius: 15px; border: 1px solid rgba(0, 217, 255, 0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+            <span style="font-size: 32px;">📸</span>
+          </div>
+          <b>RAG-Anything</b><br>
+          <sub>Multimodal RAG</sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/HKUDS/VideoRAG">
+          <div style="width: 100px; height: 100px; background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(0, 217, 255, 0.05) 100%); border-radius: 15px; border: 1px solid rgba(0, 217, 255, 0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+            <span style="font-size: 32px;">🎥</span>
+          </div>
+          <b>VideoRAG</b><br>
+          <sub>Extreme Long-Context Video RAG</sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/HKUDS/MiniRAG">
+          <div style="width: 100px; height: 100px; background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(0, 217, 255, 0.05) 100%); border-radius: 15px; border: 1px solid rgba(0, 217, 255, 0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+            <span style="font-size: 32px;">✨</span>
+          </div>
+          <b>MiniRAG</b><br>
+          <sub>Extremely Simple RAG</sub>
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
+
+## ⭐ Star History
 
 <a href="https://star-history.com/#HKUDS/LightRAG&Date">
  <picture>
@@ -1492,15 +1596,22 @@ def extract_queries(file_path):
  </picture>
 </a>
 
-## Contribution
+## 🤝 Contribution
 
-Thank you to all our contributors!
+<div align="center">
+  We thank all our contributors for their valuable contributions.
+</div>
 
-<a href="https://github.com/HKUDS/LightRAG/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HKUDS/LightRAG" />
-</a>
+<div align="center">
+  <a href="https://github.com/HKUDS/LightRAG/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=HKUDS/LightRAG" style="border-radius: 15px; box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);" />
+  </a>
+</div>
 
-## 🌟Citation
+---
+
+
+## 📖 Citation
 
 ```python
 @article{guo2024lightrag,
@@ -1513,4 +1624,31 @@ primaryClass={cs.IR}
 }
 ```
 
-**Thank you for your interest in our work!**
+---
+
+<div align="center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 30px; margin: 30px 0;">
+  <div>
+    <img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="500">
+  </div>
+  <div style="margin-top: 20px;">
+    <a href="https://github.com/HKUDS/LightRAG" style="text-decoration: none;">
+      <img src="https://img.shields.io/badge/⭐%20Star%20us%20on%20GitHub-1a1a2e?style=for-the-badge&logo=github&logoColor=white">
+    </a>
+    <a href="https://github.com/HKUDS/LightRAG/issues" style="text-decoration: none;">
+      <img src="https://img.shields.io/badge/🐛%20Report%20Issues-ff6b6b?style=for-the-badge&logo=github&logoColor=white">
+    </a>
+    <a href="https://github.com/HKUDS/LightRAG/discussions" style="text-decoration: none;">
+      <img src="https://img.shields.io/badge/💬%20Discussions-4ecdc4?style=for-the-badge&logo=github&logoColor=white">
+    </a>
+  </div>
+</div>
+
+<div align="center">
+  <div style="width: 100%; max-width: 600px; margin: 20px auto; padding: 20px; background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(0, 217, 255, 0.05) 100%); border-radius: 15px; border: 1px solid rgba(0, 217, 255, 0.2);">
+    <div style="display: flex; justify-content: center; align-items: center; gap: 15px;">
+      <span style="font-size: 24px;">⭐</span>
+      <span style="color: #00d9ff; font-size: 18px;">Thank you for visiting LightRAG!</span>
+      <span style="font-size: 24px;">⭐</span>
+    </div>
+  </div>
+</div>
